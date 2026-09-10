@@ -541,8 +541,16 @@
             const rect = canvas.getBoundingClientRect();
 
             // Browser → Canvas coordinate
-            const x = ((event.clientX - rect.left) * canvas.width) / rect.width;
-            const y = ((event.clientY - rect.top) * canvas.height) / rect.height;
+            const scale = Math.min(
+                rect.width / canvas.width,
+                rect.height / canvas.height,
+            );
+            const renderedWidth = canvas.width * scale;
+            const renderedHeight = canvas.height * scale;
+            const offsetX = (rect.width - renderedWidth) / 2;
+            const offsetY = (rect.height - renderedHeight) / 2;
+            const x = (event.clientX - rect.left - offsetX) / scale;
+            const y = (event.clientY - rect.top - offsetY) / scale;
 
             // First pointer movement
             if (previousPointerX === null || previousPointerY === null) {
