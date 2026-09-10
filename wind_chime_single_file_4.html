@@ -1,0 +1,256 @@
+<html lang="en">
+
+    <body>
+        <button id="startButton">Start</button>
+        <div id="status">Ready</div>
+        <canvas id="canvas" width="1800" height="800"></canvas>
+    </body>
+    <!-- /**
+      * 实现:    
+      * 1，画三根绳子，保证在球运动时，仍与球体相连
+      * 2，球体左右上下摆动
+      * 3，模拟真实风铃摆动行为
+      * 4，鼠标滑动，触发风铃摆动
+      * 
+      * 单摆物理公式，回复加速度a = -g*sin(theta)/L
+      * a：angular acceleration，角加速度
+      * g：gravity，重力加速度
+      * theta：angle，角度
+      * L：length，绳子长度
+      * 
+      * 角速度angularVelocity = angularVelocity + angularAcceleration
+      * 角度angle = angle + angularVelocity
+      * 阻尼damping，angularVelocity = angularVelocity * damping
+      * 如果只有重力影响摇摆，就会一直摇摆下去，阻尼则是空气摩擦，保证最终可以停止 
+      * 
+      * 模拟的核心流程：
+      *  gravity->angle->sin(angle) 产生回复力->angularAcceleration
+      *  ->angularVelocity->damping->angle
+      * 
+      * 
+      *         ┌──────────────────┐
+                │                  ↓
+                angle → gravity → acceleration
+                ↑                  ↓
+                └──── velocity ←───┘
+                            ↑
+                        damping
+     */ -->
+    <script>
+        /**
+         * 计算点到线段的距离
+         * @param {number} px - 点的 x 坐标
+         * @param {number} py - 点的 y 坐标
+         * @param {number} x1 - 线段的起点 x 坐标
+         * @param {number} y1 - 线段的起点 y 坐标
+         * @param {number} x2 - 线段的终点 x 坐标
+         * @param {number} y2 - 线段的终点 y 坐标
+         * @returns {number} - 点到线段的距离
+         *
+         * 求C在AB上的投影，下面普通字母表示向量，||表示向量的模/标量，即长度
+         * 点积公式，AC · AB = AC.x * AB.x + AC.y * AB.y
+         * 角度公式，AC · AB = |AC| * |AB| * cosθ
+         * 假设投影点D，可求得AD在AB上的比例为AP*AB/(|AB|*|AB|)
+         */
+        function distanceToSegment(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const lengthSquared = dx * dx + dy * dy;
+
+            if (lengthSquared === 0) {
+                return Math.hypot(px - x1, py - y1);
+            }
+            // 投影比例
+            let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared;
+            // 限制在线段，而不是无限延长的直线上
+            t = Math.max(0, Math.min(1, t));
+            const closestX = x1 + t * dx;
+            const closestY = y1 + t * dy;
+            return Math.hypot(px - closestX, py - closestY);
+        }
+    </script>
+
+    <script>
+        // 画布
+        const canvas = document.querySelector("#canvas");
+        const ctx = canvas.getContext("2d");
+        // 锚点
+        const pivotX = 250;
+        const pivotY = 250;
+        // 鼠标上一次的坐标位置
+        let previousPointerX = 0;
+        let previousPointerY = 0;
+
+        // 风铃对象
+        class Chime {
+            constructor(x, y, length) {
+                this.x = x;
+                this.y = y;
+                this.length = length;
+                // 角度：一瞬间的角度，>0表示在右侧，<0表示在左侧，0表示在中间
+                this.angle = 0;
+                // 角速度：摆动有多快，>0表示向右运动，<0表示向左运动
+                this.angularVelocity = 0;
+                // 角加速度：摆动的加速度，重力拉回的程度，>0表示越来越快，<0表示越来越慢
+                this.angularAcceleration = 0;
+                // 重力：永远拉回球体到正中间停止的力
+                // 如angle > 0时，gravity产生力，
+                // angularAcceleration < 0，
+                // angularVelocity 变小 / 变负，
+                // angle 开始向 0 移动
+                // 越大回复力越强
+                this.gravity = 0.1;
+                // 阻尼系数：越小停得越快
+                this.damping = 0.99;
+            }
+
+            // 更新摆动参数
+            // 位置 = 位置 + 速度；速度 = 速度 + 加速度；
+            // 角度 = 角度 + 角速度；角速度 = 角速度 + 角加速度
+            update() {
+                // this.angle += this.speed;
+
+                // 1. gravity → angular acceleration
+                this.angularAcceleration =
+                    (-this.gravity * Math.sin(this.angle)) / this.length;
+
+                // 2. acceleration → velocity
+                this.angularVelocity += this.angularAcceleration;
+
+                // 3. damping → energy loss
+                this.angularVelocity *= this.damping;
+
+                // 4. velocity → angle
+                this.angle += this.angularVelocity;
+            }
+
+            // 绘制风铃
+            draw(ctx) {
+                // 问题：TODO 如何让绳子起点为同一个？
+                // const pivotX = this.x;
+                // const pivotY = this.y;
+                // bob 是物理学里单摆末端的重物，也叫 pendulum bob
+                const bobX = pivotX + Math.sin(this.angle) * this.length;
+                const bobY = pivotY + Math.cos(this.angle) * this.length;
+
+                // 绳子
+                ctx.beginPath();
+                ctx.moveTo(pivotX, pivotY);
+                ctx.lineTo(bobX, bobY);
+                ctx.stroke();
+
+                // 画球形
+                ctx.beginPath();
+                ctx.arc(bobX, bobY, 10, 0, Math.PI * 2);
+                ctx.fillStyle = "green";
+                ctx.fill();
+            }
+
+            // 是否碰到了风铃
+            /**
+             * 比较鼠标的坐标和bob以及悬挂线之间的距离
+             * @param {number} x 当前比较的横坐标
+             * @param {number} y 当前比较的纵坐标
+             */
+            isHit(x, y) {
+                const bobX = pivotX + Math.sin(this.angle) * this.length;
+                const bobY = pivotY + Math.cos(this.angle) * this.length;
+
+                // 球
+                const bobDistance = Math.hypot(x - bobX, y - bobY);
+                if (bobDistance < 10) {
+                    return true;
+                }
+
+                // 绳子
+                const lineDistance = distanceToSegment(
+                    x,
+                    y,
+                    pivotX,
+                    pivotY,
+                    bobX,
+                    bobY,
+                );
+                return lineDistance < 10;
+            }
+
+            /**
+             * 推动风铃
+             * @param {number} x 当前比较的横坐标
+             * @param {number} y 当前比较的纵坐标
+             * @param {number} dx 横坐标偏移量
+             * @param {number} dy 纵坐标偏移量
+             */
+            push(x, y, dx, dy) {
+                const bobX = pivotX + Math.sin(this.angle) * this.length;
+                const bobY = pivotY + Math.cos(this.angle) * this.length;
+
+                // 从 pivot 指向 bob 的方向
+                // const ropeX = bobX - pivotX;
+                // const ropeY = bobY - pivotY;
+                // 归一化
+                // const length = Math.hypot(ropeX, ropeY);
+                // const nx = ropeX / length;
+                // const ny = ropeY / length;
+                // // 手指运动在绳子方向上的投影
+                // const force = dx * nx + dy * ny;
+
+                // bob运动轨迹只能是圆弧形，只需要关注bob的单位切线向量，这就表示移动的力
+                const tangentX = Math.cos(this.angle);
+                const tangentY = -Math.sin(this.angle);
+                // 鼠标移动的力，在bob单位切线向量上的投影，即越大就会摆动越大，反之亦然
+                const force = dx * tangentX + dy * tangentY;
+
+                this.angularVelocity += force * 0.01;
+            }
+        }
+
+        const chimes = [
+            // new Chime(150, 200, 50),
+            // new Chime(250, 200, 50),
+            // new Chime(350, 200, 50),
+            new Chime(150, 200, 100),
+            new Chime(250, 200, 150),
+            new Chime(350, 200, 200),
+        ];
+
+        for (const chime of chimes) {
+            chime.angle = (Math.random() * Math.PI) / 2 - Math.PI / 4;
+            chime.angularVelocity = Math.random() * 0.1 - 0.05; // 随机初始速度
+        }
+
+        // game loop
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (const chime of chimes) {
+                chime.update();
+                chime.draw(ctx);
+            }
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+
+        // 鼠标事件
+        canvas.addEventListener("pointermove", (event) => {
+            const rect = canvas.getBoundingClientRect();
+
+            // event坐标转为canvas内的坐标
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            // 和上一次光标位置的偏移量
+            const dx = x - previousPointerX;
+            const dy = y - previousPointerY;
+
+            for (const chime of chimes) {
+                if (chime.isHit(x, y)) {
+                    chime.push(x, y, dx, dy);
+                }
+            }
+
+            previousPointerX = x;
+            previousPointerY = y;
+        });
+    </script>
+
+</html>

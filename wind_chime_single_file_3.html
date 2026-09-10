@@ -1,0 +1,147 @@
+<html lang="en">
+
+    <body>
+        <button id="startButton">Start</button>
+        <div id="status">Ready</div>
+        <canvas id="canvas" width="1800" height="800"></canvas>
+    </body>
+    <!-- /**
+     * 实现:    
+     * 1，画三根绳子，保证在球运动时，仍与球体相连
+     * 2，球体左右上下摆动
+     * 3，模拟真实风铃摆动行为（单摆运动）
+     * 
+     * 作业：
+     * 1，调整参数，让风铃摆动更真实自然；
+     * 2，复习单摆物理公式，理解角度、角速度、角加速度、重力、阻尼之间的关系
+     * 
+     * 单摆物理公式，回复加速度a = -g*sin(theta)/L
+     * a：angular acceleration，角加速度
+     * g：gravity，重力加速度
+     * theta：angle，角度
+     * L：length，绳子长度
+     * 
+     * 角速度angularVelocity = angularVelocity + angularAcceleration
+     * 角度angle = angle + angularVelocity
+     * 阻尼damping，angularVelocity = angularVelocity * damping
+     * 如果只有重力影响摇摆，就会一直摇摆下去，阻尼则是空气摩擦，保证最终可以停止 
+     * 
+     * 模拟的核心流程：
+     *  gravity->angle->sin(angle) 产生回复力->angularAcceleration
+     *  ->angularVelocity->damping->angle
+     * 
+     * 
+     *         ┌──────────────────┐
+            │                  ↓
+            angle → gravity → acceleration
+            ↑                  ↓
+            └──── velocity ←───┘
+                        ↑
+                    damping
+    */ -->
+    <script>
+        // 画布
+        const canvas = document.querySelector("#canvas");
+        const ctx = canvas.getContext("2d");
+
+        const pivotX = 200;
+        const pivotY = 50;
+
+        // 风铃对象
+        class Chime {
+            constructor(x, y, length) {
+                this.x = x;
+                this.y = y;
+                this.length = length;
+                // 角度：一瞬间的角度，>0表示在右侧，<0表示在左侧，0表示在中间
+                this.angle = 0;
+                // 角速度：摆动有多快，>0表示向右运动，<0表示向左运动
+                this.angularVelocity = 0;
+                // 角加速度：摆动的加速度，重力拉回的程度，>0表示越来越快，<0表示越来越慢
+                this.angularAcceleration = 0;
+                // 重力：永远拉回球体到正中间停止的力
+                // 如angle > 0时，gravity产生力，
+                // angularAcceleration < 0，
+                // angularVelocity 变小 / 变负，
+                // angle 开始向 0 移动
+                // 越大回复力越强
+                this.gravity = 0.1;
+                // 阻尼系数：越小停得越快
+                this.damping = 0.99;
+            }
+            update() {
+                // this.angle += this.speed;
+
+                // 1. gravity → angular acceleration
+                this.angularAcceleration =
+                    (-this.gravity * Math.sin(this.angle)) / this.length;
+
+                // 2. acceleration → velocity
+                this.angularVelocity += this.angularAcceleration;
+
+                // 3. damping → energy loss
+                this.angularVelocity *= this.damping;
+
+                // 4. velocity → angle
+                this.angle += this.angularVelocity;
+            }
+
+            draw(ctx) {
+                // 问题：TODO 如何让绳子起点为同一个？
+                // const pivotX = this.x;
+                // const pivotY = this.y;
+                // bob 是物理学里单摆末端的重物，也叫 pendulum bob
+                const bobX = pivotX + Math.sin(this.angle) * this.length;
+                const bobY = pivotY + Math.cos(this.angle) * this.length;
+
+                // 绳子
+                ctx.beginPath();
+                ctx.moveTo(pivotX, pivotY);
+                ctx.lineTo(bobX, bobY);
+                ctx.stroke();
+
+                // const swing = Math.sin(this.angle) * 100;
+                // const nextX = this.x + swing;
+                // 画绳子
+                // ctx.beginPath();
+                // ctx.moveTo(250, 20);
+                // ctx.lineTo(nextX, this.y)
+                // ctx.strokeStyle = "black";
+                // ctx.lineWidth = 1;
+                // ctx.stroke();
+
+                // 画球形
+                ctx.beginPath();
+                ctx.arc(bobX, bobY, 10, 0, Math.PI * 2);
+                ctx.fillStyle = "green";
+                ctx.fill();
+            }
+        }
+
+        const chimes = [
+            // new Chime(150, 200, 50),
+            // new Chime(250, 200, 50),
+            // new Chime(350, 200, 50),
+            new Chime(150, 200, 100),
+            new Chime(250, 200, 150),
+            new Chime(350, 200, 200),
+        ];
+        
+        for (const chime of chimes) {
+            chime.angle = (Math.random() * Math.PI) / 2 - Math.PI / 4;
+            chime.angularVelocity = Math.random() * 0.1 - 0.05;
+        }
+
+        // game loop
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (const chime of chimes) {
+                chime.update();
+                chime.draw(ctx);
+            }
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+    </script>
+
+</html>

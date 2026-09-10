@@ -1,0 +1,119 @@
+<html lang="en">
+
+<body>
+    <button id="startButton">Start</button>
+    <div id="status">Ready</div>
+    <canvas id="canvas" width="700" height="700"></canvas>
+</body>
+
+<script type="module" src="./main.js"></script>
+
+<script>
+    // 简单绘图：线和圆形，理解game loop
+    const button = document.querySelector("#startButton");
+    const status = document.querySelector("#status");
+    const canvas = document.querySelector("#canvas");
+    const ctx = canvas.getContext("2d");
+
+    button.addEventListener("click", () => {
+        status.textContent = "Playing";
+        alert( "未来的自己，你好吗？" );
+    });
+
+    // 实现一个game loop：水平移动
+    // let x = 0;
+
+    // function move(){
+    //     ctx.clearRect(0,0,canvas.width,canvas.height);
+    //     ctx.beginPath();
+    //     ctx.arc(x,180,20,0,Math.PI*2);
+    //     ctx.fill();
+    //     x+=1;
+
+    //     requestAnimationFrame(move);
+    // }
+    // move();
+
+    // 实现一个game loop：来回摇摆的移动
+    let angle = 0;
+    function update() { 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        angle += 0.05;
+        const x = 300 + Math.sin(angle) * 100;
+        // draw bell
+        ctx.beginPath();
+        ctx.arc(x, 180, 20, 0, Math.PI * 2);
+        ctx.fill();
+        requestAnimationFrame(update); 
+    } 
+    update();
+    
+
+    // 「风铃模拟器」
+    // 要求：
+    // * Canvas
+    // * 3 个铃
+    // * 铃可以左右摆动
+    // * 有一个 Start/Stop 按钮
+    // * 可以用鼠标拖动风铃
+
+    // 绘制一个风铃，三条线，三个铃铛
+    // ctx.beginPath(); 
+    // ctx.moveTo(300, 50); 
+    // ctx.lineTo(250, 180);
+    // 问题：如何链接到球？
+    // ctx.moveTo(300, 50); 
+    // ctx.lineTo(300, 150);
+    // // 问题：第三条线如何画?
+    // ctx.moveTo(300, 50); 
+    // ctx.lineTo(350, 150);
+    // ctx.stroke();
+    
+    
+    // ctx.beginPath();
+    // ctx.arc(250, 180, 20, 0, Math.PI * 2);
+    // ctx.fill();
+
+    // ctx.beginPath();
+    // ctx.arc(300, 180, 20, 0, Math.PI * 2);
+    // ctx.fill();
+
+    // ctx.beginPath();
+    // ctx.arc(350, 180, 20, 0, Math.PI * 2);
+    // ctx.fill();
+
+    // 熟悉语法
+    // 后面画的颜色会覆盖前面画的颜色
+    // var c=document.getElementById("myCanvas");
+    // var ctx=c.getContext("2d");
+
+    // // 画圆：红色
+    // ctx.fillStyle = "red";
+    // ctx.beginPath();
+    // ctx.arc(50, 50, 30, 0, Math.PI/2);
+    // ctx.fill();
+
+    // // 画字体：绿色
+    // ctx.fillStyle = "green";
+    // ctx.font = "30px Arial";
+    // ctx.fillText("WIND CHIME", 0, 50);
+    
+    // // 创建渐变 
+    // const grd = ctx.createLinearGradient(0, 0, 200, 0);
+    // grd.addColorStop(0, "red");
+    // grd.addColorStop(0.25, "black");
+    // grd.addColorStop(0.35, "blue");
+    // grd.addColorStop(1, "yellow");
+
+    // // 填充渐变
+    // ctx.fillStyle = grd;
+    // ctx.fillRect(10, 10, 150, 80);
+    
+    // var grd2=ctx.createRadialGradient(75,50,5,90,60,100);
+    // grd2.addColorStop(0,"red");
+    // grd2.addColorStop(1,"white");
+    // ctx.fillStyle=grd2;
+    // ctx.fillRect(10,10,150,80);
+</script>
+
+</html>

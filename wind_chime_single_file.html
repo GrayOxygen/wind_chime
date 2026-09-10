@@ -1,0 +1,135 @@
+<html lang="en">
+<script type="module" src="./main.js"></script>
+
+<body>
+    <button id="startButton">Start</button>
+    <div id="status">Ready</div>
+    <canvas id="canvas" width="1500" height="700"></canvas>
+</body>
+<script> 
+    // 风铃对象
+    class Chime {
+        constructor(x, y, speed) {
+            this.x = x;
+            this.y = y;
+            this.angle = 0;
+            this.speed = speed;
+        }
+
+        update() {
+            // this.speed *= 0.99;
+            // this.angle += this.speed;
+            // if (this.speed < 0.001) {
+            //     this.speed = 0;
+            // }
+
+            // 向右偏 → 往左拉
+            // 向左偏 → 往右拉
+            // 正中间 → 不产生回复力
+            // 回复力
+            // this.speed += -Math.sin(this.angle) * 0.01;
+            // this.speed *= 0.99;
+            // this.angle += this.speed;
+
+            // angle/speed，velocity/acceleration/，gravity/damping
+            // 重力回复
+            this.speed += -Math.sin(this.angle) * 0.005;
+            // 阻尼 damping
+            this.speed *= 0.98;
+            // 更新角度 
+            this.angle += this.speed;
+
+            // 非常接近静止时直接归零 
+            if (
+                Math.abs(this.angle) < 0.0001 && Math.abs(this.speed) < 0.0001
+            ) {
+                this.angle = 0;
+                this.speed = 0;
+            }
+        }
+
+        draw(ctx) {
+            const swing = Math.sin(this.angle) * 100;
+            const currentX = this.x + swing;
+            
+            // 画绳子
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - 100);
+            ctx.lineTo(currentX, this.y);
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(
+                currentX,
+                this.y,
+                20,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = "green";
+            ctx.fill();
+        }
+
+        /**
+         * 鼠标是否点击到风铃
+         * @param {*} mouseX 
+         * @param {*} mouseY 
+         * @returns 
+         */
+        isHit(mouseX, mouseY) {
+            const swing = Math.sin(this.angle) * 50;
+            const currentX = this.x + swing;
+
+            const dx = mouseX - currentX;
+            const dy = mouseY - this.y;
+
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            return distance < 20;
+        }
+    }
+
+    // 画布
+    const canvas = document.querySelector("#canvas");
+    const ctx = canvas.getContext("2d");
+
+    // 多个chime对象
+    const chimes = [
+        new Chime(200, 200, 0.01),
+        new Chime(300, 200, 0.02),
+        new Chime(400, 200, 0.03)
+    ];
+    canvas.addEventListener("pointerdown", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        for (const chime of chimes) {
+            if (chime.isHit(mouseX, mouseY)) {
+                chime.speed += 0.01;
+            }
+        }
+    });
+
+    // game loop
+    function update() {
+        ctx.clearRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+        for (const chime of chimes) {
+            chime.update();
+            chime.draw(ctx);
+        }
+        requestAnimationFrame(update);
+    }
+
+    update();
+
+</script>
+
+</html>

@@ -1,0 +1,579 @@
+<html lang="zh-CN">
+
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Quiet Chimes</title>
+        <style>
+            :root {
+                color-scheme: light;
+                --ink: #006973;
+                --muted: #80b3a7;
+                --line: rgba(237, 224, 218, 0.72);
+                --glass: rgba(196, 217, 213, 0.76);
+                --accent: #80b3a7;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                min-height: 100vh;
+                margin: 0;
+                overflow: hidden;
+                color: var(--ink);
+                font-family: "Avenir Next", "PingFang SC", sans-serif;
+                background:
+                    radial-gradient(circle at 78% 6%, rgba(237, 224, 218, 0.82), transparent 25%),
+                    linear-gradient(160deg, #006973 0%, #80b3a7 52%, #c4d9d5 100%);
+            }
+
+            .page {
+                width: min(1180px, 100%);
+                min-height: 100vh;
+                margin: 0 auto;
+                padding: 28px clamp(18px, 4vw, 54px) 36px;
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+            }
+
+            .topbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 20px;
+            }
+
+            .eyebrow {
+                margin: 0 0 5px;
+                color: var(--accent);
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+            }
+
+            h1 {
+                margin: 0;
+                font-family: Georgia, serif;
+                font-size: clamp(28px, 4vw, 42px);
+                font-weight: 400;
+                letter-spacing: 0;
+            }
+
+            .control-panel {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 8px 10px 8px 16px;
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                background: var(--glass);
+                box-shadow: 0 16px 38px rgba(0, 105, 115, 0.2);
+                backdrop-filter: blur(16px);
+            }
+
+            #status {
+                color: var(--muted);
+                font-size: 13px;
+                white-space: nowrap;
+            }
+
+            #status::before {
+                content: "";
+                display: inline-block;
+                width: 7px;
+                height: 7px;
+                margin-right: 8px;
+                border-radius: 50%;
+                background: var(--accent);
+                box-shadow: 0 0 12px var(--accent);
+            }
+
+            #startButton {
+                padding: 10px 17px;
+                border: 0;
+                border-radius: 8px;
+                color: #006973;
+                background: var(--accent);
+                font: inherit;
+                font-size: 13px;
+                font-weight: 700;
+                cursor: pointer;
+                transition: transform 180ms ease, background 180ms ease;
+            }
+
+            #startButton:hover {
+                background: #e1c5b9;
+                transform: translateY(-1px);
+            }
+
+            .stage {
+                position: relative;
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+                border: 1px solid var(--line);
+                border-radius: 16px;
+                background: rgba(196, 217, 213, 0.34);
+                box-shadow: inset 0 1px rgba(237, 224, 218, 0.82), 0 22px 60px rgba(0, 105, 115, 0.18);
+            }
+
+            .hint {
+                position: absolute;
+                right: 22px;
+                bottom: 18px;
+                z-index: 1;
+                margin: 0;
+                color: rgba(0, 105, 115, 0.72);
+                font-size: 12px;
+                pointer-events: none;
+            }
+
+            #canvas {
+                display: block;
+                width: 100%;
+                height: 100%;
+                min-height: 440px;
+                cursor: crosshair;
+                touch-action: none;
+            }
+
+            @media (max-width: 620px) {
+                .page {
+                    padding: 20px 14px 18px;
+                }
+
+                .topbar {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+
+                .control-panel {
+                    width: 100%;
+                    justify-content: space-between;
+                }
+
+                .stage,
+                #canvas {
+                    min-height: 520px;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <main class="page">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">Interactive Wind Chime</p>
+                    <h1>Quiet Chimes</h1>
+                </div>
+                <div class="control-panel">
+                    <div id="status">点击开始聆听</div>
+                    <button id="startButton" type="button">开始体验</button>
+                </div>
+            </header>
+            <section class="stage" aria-label="风铃互动区域">
+                <p class="hint">移动指针，轻触风铃</p>
+                <canvas id="canvas" width="1800" height="900"></canvas>
+            </section>
+        </main>
+    </body>
+    <!-- 
+    实现任务：
+    1，不同铃铛表示不同频率的声音
+    2，碰撞发出声音
+    3，增加bob个数，优化声音
+    4，根据bob位置，调整pan
+    5，根据角速度，调整播放速度
+    6，摆动的时候，声音一直存在，逐渐停止时，声音也要逐渐才停止
+    7，优化UI
+    -->
+    <script>
+        const audioContext = new AudioContext();
+
+        // Point → Line Segment
+        /**
+         * 计算点到线段的距离，
+         * 同时返回碰撞点在线段上的位置 t
+         *
+         * t = 0 → pivot
+         * t = 1 → bob
+         *
+         * @returns {
+         *   distance: number,
+         *   t: number
+         * }
+         */
+        function distanceToSegment(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+
+            const lengthSquared = dx * dx + dy * dy;
+
+            // 线段退化成一个点
+            if (lengthSquared === 0) {
+                return {
+                    distance: Math.hypot(px - x1, py - y1),
+                    t: 0,
+                };
+            }
+
+            // 计算鼠标点在线段上的投影位置
+            //
+            // t = 0 → 起点
+            // t = 1 → 终点
+
+            let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared;
+
+            // 限制在 0 ~ 1
+            t = Math.max(0, Math.min(1, t));
+
+            // 得到线段上距离鼠标最近的点
+
+            const closestX = x1 + t * dx;
+            const closestY = y1 + t * dy;
+
+            const distance = Math.hypot(px - closestX, py - closestY);
+
+            return {
+                distance,
+                t,
+            };
+        }
+
+        // Canvas
+        const canvas = document.querySelector("#canvas");
+        const ctx = canvas.getContext("2d");
+        const startButton = document.querySelector("#startButton");
+        const status = document.querySelector("#status");
+
+        // Pivot
+        const pivotX = 900;
+        const pivotY = 400;
+
+        // Pointer previous position
+        let previousPointerX = null;
+        let previousPointerY = null;
+
+        // Chime
+        class Chime {
+            constructor(x, y, length, frequency) {
+                this.x = x;
+                this.y = y;
+                this.frequency = frequency;
+                // 物理参数
+                this.length = length;
+                this.angle = 0;
+                this.angularVelocity = 0;
+                this.angularAcceleration = 0;
+                this.gravity = 0.1;
+                this.damping = 0.99;
+                // 碰撞信息
+
+                // collision position
+                // 0 → pivot
+                // 1 → bob
+                this.collisionPosition = 0;
+
+                // collision direction
+                this.collisionDirection = {
+                    x: 0,
+                    y: 0,
+                };
+
+                this.soundGain = audioContext.createGain();
+                this.soundPanner = audioContext.createStereoPanner();
+                this.soundPartials = [];
+                this.createSound();
+            }
+
+            // Update
+            update() {
+                // gravity
+                this.angularAcceleration =
+                    (-this.gravity * Math.sin(this.angle)) / this.length;
+
+                // acceleration → velocity
+                this.angularVelocity += this.angularAcceleration;
+
+                // damping
+                this.angularVelocity *= this.damping;
+
+                // velocity → angle
+                this.angle += this.angularVelocity;
+
+                this.updateSound();
+            }
+
+            createSound() {
+                const partials = [
+                    { ratio: 1.0, level: 0.8 },
+                    { ratio: 2.01, level: 0.28 },
+                    { ratio: 2.72, level: 0.12 },
+                    { ratio: 4.16, level: 0.01 },
+                ];
+
+                this.soundGain.gain.value = 0.0001;
+                this.soundGain.connect(this.soundPanner);
+                this.soundPanner.connect(audioContext.destination);
+
+                for (const partial of partials) {
+                    const oscillator = audioContext.createOscillator();
+                    const partialGain = audioContext.createGain();
+
+                    oscillator.type = "sine";
+                    oscillator.frequency.value = this.frequency * partial.ratio;
+                    partialGain.gain.value = partial.level;
+                    oscillator.connect(partialGain);
+                    partialGain.connect(this.soundGain);
+                    oscillator.start();
+
+                    this.soundPartials.push({ oscillator, partial });
+                }
+            }
+
+            updateSound() {
+                const now = audioContext.currentTime;
+                const bob = this.getBobPosition();
+                const maxPanDistance = 350;
+                const pan = Math.max(
+                    -1,
+                    Math.min(1, (bob.x - pivotX) / maxPanDistance),
+                );
+                const motion = Math.min(1, Math.abs(this.angularVelocity) / 0.18);
+                // const speed = 1 + Math.sin(motion);
+                const speed = 1;
+                const targetVolume = 0.0001 + motion * 0.055;
+
+                this.soundGain.gain.setTargetAtTime(targetVolume, now, 0.08);
+                this.soundPanner.pan.setTargetAtTime(pan, now, 0.08);
+
+                for (const { oscillator, partial } of this.soundPartials) {
+                    oscillator.frequency.setTargetAtTime(
+                        this.frequency * partial.ratio * speed,
+                        now,
+                        0.08,
+                    );
+                }
+            }
+
+            // Bob Position
+            getBobPosition() {
+                const bobX = pivotX + Math.sin(this.angle) * this.length;
+                const bobY = pivotY + Math.cos(this.angle) * this.length;
+                return { x: bobX, y: bobY };
+            }
+
+            // Tangent
+            getTangent() {
+                // bob 当前运动轨迹的切线单位向量
+                const tangentX = Math.cos(this.angle);
+                const tangentY = -Math.sin(this.angle);
+
+                return {
+                    x: tangentX,
+                    y: tangentY,
+                };
+            }
+
+            // Draw
+            draw(ctx) {
+                const bob = this.getBobPosition();
+                const bobX = bob.x;
+                const bobY = bob.y;
+
+                // Suspension line
+                ctx.beginPath();
+                ctx.moveTo(pivotX, pivotY);
+                ctx.lineTo(bobX, bobY);
+                ctx.strokeStyle = "rgba(237, 224, 218, 0.86)";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Large, quiet bob
+                const bobRadius = 28;
+                const bobGradient = ctx.createRadialGradient(
+                    bobX - 7,
+                    bobY - 8,
+                    2,
+                    bobX,
+                    bobY,
+                    bobRadius,
+                );
+                bobGradient.addColorStop(0, "#ffffff");
+                bobGradient.addColorStop(0.18, "#ffffff");
+                bobGradient.addColorStop(0.62, "#ffffff");
+                bobGradient.addColorStop(1, "#ffffff");
+                ctx.fillStyle = bobGradient;
+                ctx.shadowColor = "rgba(237, 224, 218, 0.86)";
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.arc(bobX, bobY, bobRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.94)";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Collision Detection
+            isHit(x, y) {
+                const bob = this.getBobPosition();
+                const bobX = bob.x;
+                const bobY = bob.y;
+
+                // 1. Bob collision
+                const bobDistance = Math.hypot(x - bobX, y - bobY);
+                if (bobDistance < 28) {
+                    return {
+                        hit: true,
+                        // bob 就是线段终点
+                        position: 1,
+                    };
+                }
+
+                // 2. Rope collision
+                const result = distanceToSegment(x, y, pivotX, pivotY, bobX, bobY);
+                if (result.distance < 10) {
+                    return {
+                        hit: true,
+                        // collision position
+                        position: result.t,
+                    };
+                }
+
+                // 没有碰撞
+                return { hit: false, position: 0 };
+            }
+
+            // Push
+            push(dx, dy, collisionPosition) {
+                // 1. Collision Position
+                this.collisionPosition = collisionPosition;
+
+                // 2. Collision Direction
+                const length = Math.hypot(dx, dy);
+                if (length === 0) {
+                    return;
+                }
+                const directionX = dx / length;
+                const directionY = dy / length;
+                this.collisionDirection = { x: directionX, y: directionY };
+
+                // 4. Bob tangent
+                const tangent = this.getTangent();
+
+                // 5. Collision Push Amount
+                //    在 tangent 方向上的投影
+                const pushAmount = dx * tangent.x + dy * tangent.y;
+
+                // 6. Collision Position → Torque
+                // 离 pivot 越远
+                // 力矩越大
+                //
+                // torque = force × distance
+                //
+                // 这里 collisionPosition 是：
+                //
+                // 0 → pivot
+                // 1 → bob
+
+                const torque = pushAmount * collisionPosition;
+
+                // 7. Torque → Angular Velocity
+                this.angularVelocity += torque * 0.01;
+            }
+        }
+
+        // Create Chimes
+        const chimes = [
+            new Chime(150, 200, 110, 261.63 / 2),
+            new Chime(250, 200, 125, 329.63 / 2),
+            new Chime(350, 200, 140, 392.0 / 2),
+            new Chime(150, 200, 155, 493.88 / 2),
+            new Chime(150, 200, 170, 261.63),
+            new Chime(250, 200, 185, 329.63),
+            new Chime(350, 200, 200, 392.0),
+            new Chime(150, 200, 215, 493.88),
+            new Chime(150, 200, 230, 261.63 * 2),
+            new Chime(250, 200, 245, 329.63 * 2),
+            new Chime(350, 200, 260, 392.0 * 2),
+            new Chime(150, 200, 275, 493.88 * 2),
+            new Chime(150, 200, 290, 261.63 * 3),
+            new Chime(250, 200, 305, 329.63 * 3),
+            new Chime(350, 200, 320, 392.0 * 3),
+            new Chime(150, 200, 340, 493.88 * 3),
+        ];
+
+        // Initial State
+        for (const chime of chimes) {
+            chime.angle = (Math.random() * Math.PI) / 2 - Math.PI / 4;
+            chime.angularVelocity = Math.random() * 0.1 - 0.05;
+        }
+
+        // Game Loop
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const atmosphere = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            atmosphere.addColorStop(0, "#006973");
+            atmosphere.addColorStop(0.58, "#80b3a7");
+            atmosphere.addColorStop(1, "#c4d9d5");
+            ctx.fillStyle = atmosphere;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (const chime of chimes) {
+                chime.update();
+                chime.draw(ctx);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+
+        // Pointer Event
+        canvas.addEventListener("pointermove", (event) => {
+            const rect = canvas.getBoundingClientRect();
+
+            // Browser → Canvas coordinate
+            const x = ((event.clientX - rect.left) * canvas.width) / rect.width;
+            const y = ((event.clientY - rect.top) * canvas.height) / rect.height;
+
+            // First pointer movement
+            if (previousPointerX === null || previousPointerY === null) {
+                previousPointerX = x;
+                previousPointerY = y;
+                return;
+            }
+
+            // Collision Movement
+            const dx = x - previousPointerX;
+            const dy = y - previousPointerY;
+
+            // Check every chime
+            for (const chime of chimes) {
+                const collision = chime.isHit(x, y);
+                if (collision.hit) {
+                    chime.push(dx, dy, collision.position);
+                }
+            }
+
+            // Save pointer position
+            previousPointerX = x;
+            previousPointerY = y;
+        });
+
+        // 声音部分
+        startButton.addEventListener("click", () => {
+            audioContext.resume();
+            status.textContent = "风铃已唤醒，移动指针开始演奏";
+            startButton.textContent = "已开始";
+        });
+    </script>
+
+</html>
